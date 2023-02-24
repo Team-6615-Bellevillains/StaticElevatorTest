@@ -35,6 +35,10 @@ public class Robot extends TimedRobot {
     @Override
     public void robotPeriodic() {
         SmartDashboard.putNumber("Voltage", voltage);
+        SmartDashboard.putNumber("A Stator Current", verticalElevatorMotorA.getStatorCurrent());
+        SmartDashboard.putNumber("A Supply Current", verticalElevatorMotorA.getSupplyCurrent());
+        SmartDashboard.putNumber("B Stator Current", verticalElevatorMotorB.getStatorCurrent());
+        SmartDashboard.putNumber("B Supply Current", verticalElevatorMotorB.getSupplyCurrent());
     }
 
     @Override
