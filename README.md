@@ -1,0 +1,1 @@
+This test attemps to approximate the kS and kG values for our elevator, which is currently not compatible with SysID since it is too weak to hold itself up and therefore cannot do backwards tests.
