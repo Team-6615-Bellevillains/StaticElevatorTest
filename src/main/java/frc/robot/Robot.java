@@ -36,7 +36,6 @@ public class Robot extends TimedRobot {
 
                 verticalElevatorEncoder = new Encoder(0, 1);
                 verticalElevatorEncoder.setSamplesToAverage(15);
-//        verticalElevatorEncoder.setDistancePerPulse(ElevatorConstants.verticalEncoderPulsesPerRevolution * ElevatorConstants.verticalRotationsToDistance);
                 verticalElevatorEncoder.setReverseDirection(true);
             } catch (Exception e) {
                 e.printStackTrace();
