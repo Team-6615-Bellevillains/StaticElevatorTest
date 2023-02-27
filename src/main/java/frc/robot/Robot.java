@@ -61,6 +61,7 @@ public class Robot extends TimedRobot {
 
     @Override
     public void autonomousInit() {
+        verticalElevatorEncoder.setSamplesToAverage(15);
     }
 
     @Override
@@ -106,6 +107,8 @@ public class Robot extends TimedRobot {
 
     @Override
     public void teleopInit() {
+        verticalElevatorEncoder.setSamplesToAverage(3);
+
         elevatorFeedforward = new ElevatorFeedforward(kS, kG, 0.147613 * Units.inchesToMeters(1));
         profiledPIDController.setGoal(Units.inchesToMeters(15));
         profiledPIDController.reset(getVerticalEncoderDistance());
