@@ -5,40 +5,59 @@
 package frc.robot;
 
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
+import edu.wpi.first.math.controller.ElevatorFeedforward;
+import edu.wpi.first.math.controller.ProfiledPIDController;
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.Constants.ElevatorConstants;
 
 public class Robot extends TimedRobot {
     private WPI_TalonSRX verticalElevatorMotorA;
     private WPI_TalonSRX verticalElevatorMotorB;
     private Encoder verticalElevatorEncoder;
+    private final CommandXboxController xboxController = new CommandXboxController(0);
+    private final int kSlowFallVoltage = 2;
 
     @Override
     public void robotInit() {
-        verticalElevatorMotorA = new WPI_TalonSRX(ElevatorConstants.verticalMotorAPort);
-        verticalElevatorMotorB = new WPI_TalonSRX(ElevatorConstants.verticalMotorBPort);
+        new Thread(() -> {
+            try {
+                Thread.sleep(1000);
 
-        verticalElevatorMotorA.setInverted(true);
+                verticalElevatorMotorA = new WPI_TalonSRX(ElevatorConstants.verticalMotorAPort);
+                verticalElevatorMotorB = new WPI_TalonSRX(ElevatorConstants.verticalMotorBPort);
 
-        verticalElevatorEncoder = new Encoder(0, 1);
-        verticalElevatorEncoder.setReverseDirection(true);
+                verticalElevatorMotorA.setInverted(true);
+
+                verticalElevatorEncoder = new Encoder(0, 1);
+                verticalElevatorEncoder.setSamplesToAverage(15);
+//        verticalElevatorEncoder.setDistancePerPulse(ElevatorConstants.verticalEncoderPulsesPerRevolution * ElevatorConstants.verticalRotationsToDistance);
+                verticalElevatorEncoder.setReverseDirection(true);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+
+
     }
 
     private static final double tickRate = 50;
 
     private double voltage = 0;
-    private double voltageIncreasePerTick = .25 / tickRate;
+    private double voltageIncreasePerTick = .1 / tickRate;
     private double kGPlus = 0;
+    private double kGMinus = 0;
+
+    private double kG = 0;
+    private double kS = 0;
 
     @Override
     public void robotPeriodic() {
-        SmartDashboard.putNumber("Voltage", voltage);
-        SmartDashboard.putNumber("A Stator Current", verticalElevatorMotorA.getStatorCurrent());
-        SmartDashboard.putNumber("A Supply Current", verticalElevatorMotorA.getSupplyCurrent());
-        SmartDashboard.putNumber("B Stator Current", verticalElevatorMotorB.getStatorCurrent());
-        SmartDashboard.putNumber("B Supply Current", verticalElevatorMotorB.getSupplyCurrent());
     }
 
     @Override
@@ -47,15 +66,25 @@ public class Robot extends TimedRobot {
 
     @Override
     public void autonomousPeriodic() {
-        if (Math.abs(verticalElevatorEncoder.getRate()) > 5) {
-            if (voltageIncreasePerTick >= 0) {
-                SmartDashboard.putNumber("kG+", voltage);
-                kGPlus = voltage;
-                voltageIncreasePerTick *= -1;
-            } else {
+        System.out.printf("Curr %s volts", voltage);
+
+        SmartDashboard.putNumber("Timer", Timer.getFPGATimestamp());
+        SmartDashboard.putNumber("Rate", verticalElevatorEncoder.getRate());
+
+        SmartDashboard.putNumber("Voltage", voltage);
+        SmartDashboard.putNumber("A Stator Current", verticalElevatorMotorA.getStatorCurrent());
+        SmartDashboard.putNumber("A Supply Current", verticalElevatorMotorA.getSupplyCurrent());
+        SmartDashboard.putNumber("B Stator Current", verticalElevatorMotorB.getStatorCurrent());
+        SmartDashboard.putNumber("B Supply Current", verticalElevatorMotorB.getSupplyCurrent());
+        if (verticalElevatorEncoder.getRate() > 2 && voltageIncreasePerTick >= 0) {
+            SmartDashboard.putNumber("kG+", voltage);
+            kGPlus = voltage;
+            voltageIncreasePerTick *= -1;
+        } else if (kGPlus != 0 && verticalElevatorEncoder.getRate() <= 0) {
+            if (kGMinus == 0) {
+                kGMinus = voltage;
                 SmartDashboard.putNumber("kG-", voltage);
-                double kGMinus = voltage;
-                voltage = 0;
+                voltage = kSlowFallVoltage;
                 voltageIncreasePerTick = 0;
 
                 SmartDashboard.putNumber("kG", (kGPlus + kGMinus) / 2);
@@ -63,17 +92,43 @@ public class Robot extends TimedRobot {
             }
         }
 
+        if (voltageIncreasePerTick == 0 && verticalElevatorEncoder.get() == 0) {
+            voltage = 0;
+        }
+
         voltage += voltageIncreasePerTick;
         verticalElevatorMotorA.setVoltage(voltage);
         verticalElevatorMotorB.setVoltage(voltage);
     }
 
+
+    private ProfiledPIDController profiledPIDController = new ProfiledPIDController(0.05, 0, 0, new TrapezoidProfile.Constraints(.10, 0.05));
+    private ElevatorFeedforward elevatorFeedforward;
+
     @Override
     public void teleopInit() {
+        elevatorFeedforward = new ElevatorFeedforward(kS, kG, 0.147613 * Units.inchesToMeters(1));
+        profiledPIDController.setGoal(Units.inchesToMeters(15));
+        profiledPIDController.reset(getVerticalEncoderDistance());
+    }
+
+    public double getVerticalEncoderDistance() {
+        return verticalElevatorEncoder.get() * (ElevatorConstants.verticalRotationsToDistance / ElevatorConstants.verticalEncoderPulsesPerRevolution);
     }
 
     @Override
     public void teleopPeriodic() {
+        if (xboxController.a().getAsBoolean()) {
+            SmartDashboard.putNumber("Position", getVerticalEncoderDistance());
+            double pidOutput = profiledPIDController.calculate(getVerticalEncoderDistance());
+            double feedforward = elevatorFeedforward.calculate(profiledPIDController.getSetpoint().velocity);
+
+            verticalElevatorMotorA.setVoltage(pidOutput + feedforward);
+            verticalElevatorMotorB.setVoltage(pidOutput + feedforward);
+        } else {
+            verticalElevatorMotorA.setVoltage(elevatorFeedforward.calculate(0));
+            verticalElevatorMotorB.setVoltage(elevatorFeedforward.calculate(0));
+        }
     }
 
     @Override
@@ -82,8 +137,16 @@ public class Robot extends TimedRobot {
 
     @Override
     public void disabledPeriodic() {
-        verticalElevatorMotorA.setVoltage(0);
-        verticalElevatorMotorB.setVoltage(0);
+        if (verticalElevatorMotorA != null) {
+            if (verticalElevatorEncoder.get() != 0) {
+                voltage = kSlowFallVoltage;
+            } else {
+                voltage = 0;
+            }
+
+            verticalElevatorMotorA.setVoltage(voltage);
+            verticalElevatorMotorB.setVoltage(voltage);
+        }
     }
 
     @Override

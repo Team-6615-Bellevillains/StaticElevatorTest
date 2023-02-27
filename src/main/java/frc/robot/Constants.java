@@ -20,8 +20,7 @@ public final class Constants {
         public static final double verticalGearDiameter = Units.inchesToMeters(1.76);
 
         public static final int verticalEncoderPulsesPerRevolution = kCimcoderPulsesPerRevolution;
-        public static final double verticalRotationsToDistance = verticalGearDiameter * Math.PI
-                / verticalGearRatio;
+        public static final double verticalRotationsToDistance = verticalGearDiameter * Math.PI * verticalGearRatio;
 
         public static final double verticalLowHeight = 0;
         public static final double verticalMidHeight = Units.inchesToMeters(15);
