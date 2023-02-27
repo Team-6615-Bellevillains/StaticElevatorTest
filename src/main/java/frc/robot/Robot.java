@@ -84,7 +84,6 @@ public class Robot extends TimedRobot {
             if (kGMinus == 0) {
                 kGMinus = voltage;
                 SmartDashboard.putNumber("kG-", voltage);
-                voltage = kSlowFallVoltage;
                 voltageIncreasePerTick = 0;
 
                 SmartDashboard.putNumber("kG", (kGPlus + kGMinus) / 2);
@@ -92,13 +91,13 @@ public class Robot extends TimedRobot {
             }
         }
 
-        if (voltageIncreasePerTick == 0 && verticalElevatorEncoder.get() == 0) {
-            voltage = 0;
+        if (voltageIncreasePerTick == 0) {
+            lowerOrStopElevator();
+        } else {
+            voltage += voltageIncreasePerTick;
+            verticalElevatorMotorA.setVoltage(voltage);
+            verticalElevatorMotorB.setVoltage(voltage);
         }
-
-        voltage += voltageIncreasePerTick;
-        verticalElevatorMotorA.setVoltage(voltage);
-        verticalElevatorMotorB.setVoltage(voltage);
     }
 
 
@@ -118,6 +117,17 @@ public class Robot extends TimedRobot {
         return verticalElevatorEncoder.get() * (ElevatorConstants.verticalRotationsToDistance / ElevatorConstants.verticalEncoderPulsesPerRevolution);
     }
 
+    public void lowerOrStopElevator() {
+        if (verticalElevatorEncoder.get() != 0) {
+            voltage = kSlowFallVoltage;
+        } else {
+            voltage = 0;
+        }
+
+        verticalElevatorMotorA.setVoltage(voltage);
+        verticalElevatorMotorB.setVoltage(voltage);
+    }
+
     @Override
     public void teleopPeriodic() {
         if (xboxController.a().getAsBoolean()) {
@@ -127,9 +137,11 @@ public class Robot extends TimedRobot {
 
             verticalElevatorMotorA.setVoltage(pidOutput + feedforward);
             verticalElevatorMotorB.setVoltage(pidOutput + feedforward);
-        } else {
+        } else if (xboxController.b().getAsBoolean()){
             verticalElevatorMotorA.setVoltage(elevatorFeedforward.calculate(0));
             verticalElevatorMotorB.setVoltage(elevatorFeedforward.calculate(0));
+        } else {
+            lowerOrStopElevator();
         }
     }
 
@@ -140,14 +152,7 @@ public class Robot extends TimedRobot {
     @Override
     public void disabledPeriodic() {
         if (verticalElevatorMotorA != null) {
-            if (verticalElevatorEncoder.get() != 0) {
-                voltage = kSlowFallVoltage;
-            } else {
-                voltage = 0;
-            }
-
-            verticalElevatorMotorA.setVoltage(voltage);
-            verticalElevatorMotorB.setVoltage(voltage);
+            lowerOrStopElevator();
         }
     }
 
